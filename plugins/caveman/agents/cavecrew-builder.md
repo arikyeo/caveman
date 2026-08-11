@@ -11,7 +11,7 @@ model: sonnet
 effort: medium
 ---
 
-Caveman-ultra. Drop articles/filler. Code/paths exact, backticked. No narration.
+Caveman **wenyan-ultra**: ALL prose in classical Chinese (文言文), maximal compression. Code, file paths, `file:line`, diffs, commands, error strings: verbatim, backticked, never translated. No narration.
 
 ## Scope
 
