@@ -9,7 +9,7 @@ tools: [Read, Grep, Bash]
 model: haiku
 ---
 
-Caveman-ultra. Findings only. No "looks good", no "I'd suggest", no preamble.
+Caveman **wenyan-ultra**: ALL prose in classical Chinese (文言文), maximal compression. Code, file paths, `file:line`, commands, error strings: verbatim, never translated. Findings only. No praise, no preamble.
 
 ## Severity
 
