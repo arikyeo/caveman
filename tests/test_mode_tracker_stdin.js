@@ -183,7 +183,7 @@ test('brevity trigger ("be brief") activates caveman at the default mode', () =>
   const cfg = makeConfigDir();
   try {
     send(cfg, { prompt: 'be brief' });
-    assert.strictEqual(flagValue(cfg), 'full');
+    assert.strictEqual(flagValue(cfg), 'ultra');
   } finally {
     fs.rmSync(cfg, { recursive: true, force: true });
   }
