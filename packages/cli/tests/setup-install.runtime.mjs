@@ -14,6 +14,10 @@ const fixture = join(root, "tests", "fixtures", "binary-release");
 const checksums = readFileSync(join(fixture, "checksums.txt"), "utf8");
 const signature = readFileSync(join(fixture, "checksums.txt.keysig"), "utf8");
 const binaryBody = "#!/bin/sh\nexit 0\n";
+const fixturePlatformPrefix = [
+  "--import",
+  "data:text/javascript,Object.defineProperties(process,{platform:{value:'darwin'},arch:{value:'arm64'}})",
+];
 
 function runCli(argv, env, prefix = []) {
   return new Promise((resolve, reject) => {
@@ -66,6 +70,8 @@ async function releaseServer(mode = "valid") {
 function setupEnv(home, base, timeout = "3") {
   return {
     ...process.env,
+    HOME: home,
+    USERPROFILE: home,
     NO_COLOR: "1",
     CAVEMAN_HOME: home,
     CAVE_BINARY_RELEASE_BASE: base,
@@ -84,20 +90,25 @@ function partials(home) {
 test("setup --install verifies, installs, emits clean JSON, then works offline", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-setup-install-"));
   const server = await releaseServer();
-  const first = await runCli(["setup", "--install", "--json"], setupEnv(home, server.base));
+  const first = await runCli(["setup", "--install", "--json"], setupEnv(home, server.base), fixturePlatformPrefix);
   assert.equal(first.code, 0, first.stderr);
   const result = JSON.parse(first.stdout);
   assert.equal(result.release, release);
   assert.equal(result.binaries.length, 6);
   assert.ok(result.binaries.every((item) => item.status === "installed"));
-  assert.ok(result.binaries.every((item) => (statSync(item.path).mode & 0o777) === 0o755));
-  assert.equal(statSync(join(home, "bin", ".bin-manifest.json")).mode & 0o777, 0o600);
+  assert.ok(result.binaries.every((item) => statSync(item.path).isFile()));
+  const manifestStat = statSync(join(home, "bin", ".bin-manifest.json"));
+  assert.equal(manifestStat.isFile(), true);
+  if (process.platform !== "win32") {
+    assert.ok(result.binaries.every((item) => (statSync(item.path).mode & 0o777) === 0o755));
+    assert.equal(manifestStat.mode & 0o777, 0o600);
+  }
   assert.match(first.stderr, /checksum verified/);
   assert.deepEqual(partials(home), []);
   assert.ok(server.requests() >= 8);
   await server.close();
 
-  const second = await runCli(["setup", "--install"], setupEnv(home, server.base));
+  const second = await runCli(["setup", "--install"], setupEnv(home, server.base), fixturePlatformPrefix);
   assert.equal(second.code, 0, second.stderr);
   assert.equal((second.stdout.match(/already installed · checksum verified/g) ?? []).length, 6);
   assert.equal(second.stderr, "");
@@ -106,7 +117,7 @@ test("setup --install verifies, installs, emits clean JSON, then works offline",
 test("setup --install rejects a bad manifest signature before writing binaries", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-setup-signature-"));
   const server = await releaseServer("bad-signature");
-  const out = await runCli(["setup", "--install"], setupEnv(home, server.base));
+  const out = await runCli(["setup", "--install"], setupEnv(home, server.base), fixturePlatformPrefix);
   await server.close();
   assert.notEqual(out.code, 0);
   assert.match(out.stderr, /signature check failed for checksums\.txt — refusing to install; partial download deleted/);
@@ -116,7 +127,7 @@ test("setup --install rejects a bad manifest signature before writing binaries",
 test("setup --install deletes a checksum-mismatched partial", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-setup-checksum-"));
   const server = await releaseServer("bad-binary");
-  const out = await runCli(["setup", "--install"], setupEnv(home, server.base));
+  const out = await runCli(["setup", "--install"], setupEnv(home, server.base), fixturePlatformPrefix);
   await server.close();
   assert.notEqual(out.code, 0);
   assert.match(out.stderr, /signature check failed for caveman-proxy_/);
@@ -128,7 +139,7 @@ test("setup --install reports unreachable release without partials", async () =>
   const server = await releaseServer();
   const base = server.base;
   await server.close();
-  const out = await runCli(["setup", "--install"], setupEnv(home, base));
+  const out = await runCli(["setup", "--install"], setupEnv(home, base), fixturePlatformPrefix);
   assert.notEqual(out.code, 0);
   assert.match(out.stderr, /^binary download unreachable — agents still launch; traffic is NOT compressed or metered/m);
   assert.deepEqual(partials(home), []);
@@ -137,7 +148,7 @@ test("setup --install reports unreachable release without partials", async () =>
 test("setup --install times out stalled artifacts and deletes partials", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-setup-stall-"));
   const server = await releaseServer("stall");
-  const out = await runCli(["setup", "--install"], setupEnv(home, server.base, "1"));
+  const out = await runCli(["setup", "--install"], setupEnv(home, server.base, "1"), fixturePlatformPrefix);
   await server.close();
   assert.notEqual(out.code, 0);
   assert.match(out.stderr, /^binary download stalled after 1s — nothing installed; agents still launch, traffic is NOT compressed or metered/m);

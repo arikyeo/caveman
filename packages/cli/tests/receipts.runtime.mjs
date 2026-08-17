@@ -400,7 +400,7 @@ test("export writes a bundle from the local control plane, which then verifies",
 
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const outFile = tmp("exported.json");
-  const env = { ...process.env, HOME: home, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const exported = await runCli(["receipts", "export", "--since", "2026-06-01", "-o", outFile], env);
   assert.equal(exported.code, 0, exported.stderr);

@@ -81,7 +81,7 @@ function listen(server) {
 test("login is unavailable while Caveman Cloud is in beta", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
   delete env.CAVE_TOKEN;
 
   const result = await runCli(["login", "--base-url", "http://127.0.0.1:1"], env);
@@ -100,7 +100,7 @@ test("login device flow stores token in credentials file and binds org", { skip:
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
   delete env.CAVE_TOKEN;
 
   const login = await runCli(["login", "--no-browser", "--base-url", `http://127.0.0.1:${port}`], env);
@@ -122,7 +122,7 @@ test("login device flow stores token in credentials file and binds org", { skip:
 
 test("login beta gate takes precedence over argument validation", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
-  const out = await runCli(["login", "--browser-ish"], { ...process.env, HOME: home });
+  const out = await runCli(["login", "--browser-ish"], { ...process.env, HOME: home, USERPROFILE: home });
   assert.equal(out.code, 1);
   assert.equal(out.stdout, "");
   assert.equal(out.stderr, "Caveman Cloud platform is still in beta.\n");
@@ -142,7 +142,7 @@ test("login rejects a non-2xx device-code response before polling", { skip: "Clo
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   try {
-    const result = await runCli(["login", "--no-browser", "--base-url", `http://127.0.0.1:${port}`], { ...process.env, HOME: home });
+    const result = await runCli(["login", "--no-browser", "--base-url", `http://127.0.0.1:${port}`], { ...process.env, HOME: home, USERPROFILE: home });
     assert.notEqual(result.code, 0);
     assert.match(result.stderr, /device authorization failed: HTTP 503/);
     assert.equal(polls, 0);
@@ -154,7 +154,7 @@ test("login rejects a non-2xx device-code response before polling", { skip: "Clo
 test("login retries a transient token-poll connection failure", { skip: "Cloud login disabled during beta" }, async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
   delete env.CAVE_TOKEN;
   let polls = 0;
   const server = createServer((req, res) => {
@@ -195,7 +195,7 @@ test("CAVE_TOKEN bypasses login for connected verbs", async () => {
   const { server, getCapturedAuth } = startStub();
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
-  const env = { ...process.env, HOME: home, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const whoami = await runCli(["whoami"], env);
   assert.equal(whoami.code, 0, `whoami failed: ${whoami.stderr}`);
@@ -209,7 +209,7 @@ test("CAVE_TOKEN bypasses login for connected verbs", async () => {
 test("connected verb without credentials exits non-zero with a login hint", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir };
   delete env.CAVE_TOKEN;
 
   const whoami = await runCli(["whoami"], env);
@@ -226,7 +226,7 @@ test("login persists the gateway URL and wrap flips to it with no env var", { sk
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
   delete env.CAVE_TOKEN;
   delete env.CAVE_GATEWAY_URL;
 
@@ -257,7 +257,7 @@ test("login derives the local sibling gateway when none is given", { skip: "Clou
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
   delete env.CAVE_TOKEN;
   delete env.CAVE_GATEWAY_URL;
 

@@ -26,6 +26,13 @@ function listen(server) {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
 }
 
+function closeServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+    server.closeAllConnections();
+  });
+}
+
 // startImportStub runs a minimal control-api imports endpoint that records
 // every POST body + URL it receives and answers like the real handler.
 function startImportStub() {
@@ -147,7 +154,7 @@ function makeSpendDb(caveDir) {
 test("sync without login exits non-zero with a login hint", async () => {
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir };
   delete env.CAVE_TOKEN;
 
   const out = await runCli(["sync"], env);
@@ -163,7 +170,7 @@ test("sync uploads local spans, advances the watermark, and stays idempotent", a
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const { db, insert } = makeSpendDb(caveDir);
   insert("req-1", 1000, 400);
@@ -205,7 +212,7 @@ test("sync uploads local spans, advances the watermark, and stays idempotent", a
   const state = JSON.parse(readFileSync(join(home, ".caveman-cloud", "sync.json"), "utf8"));
   assert.equal(Object.values(state.watermarks)[0], 3, "watermark must sit at the last confirmed rowid");
 
-  server.close();
+  await closeServer(server);
 });
 
 // No local spend store at all: a clean no-op, exit 0, no POST, no crash.
@@ -214,7 +221,7 @@ test("sync with no local spend store is a safe no-op", async () => {
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const out = await runCli(["sync"], env);
   assert.equal(out.code, 0, `sync failed: ${out.stderr}`);
@@ -222,7 +229,7 @@ test("sync with no local spend store is a safe no-op", async () => {
   assert.match(out.stdout, /inferred/, "the hint keeps the inferred framing");
   assert.equal(imports.length, 0, "must not POST when there is no store");
 
-  server.close();
+  await closeServer(server);
 });
 
 test("sync uploads pending local retro aggregate once without private scan text", async () => {
@@ -261,6 +268,7 @@ test("sync uploads pending local retro aggregate once without private scan text"
   const env = {
     ...process.env,
     HOME: home,
+    USERPROFILE: home,
     CAVEMAN_HOME: caveDir,
     CAVE_TOKEN: "ci-token",
     CAVE_API_URL: `http://127.0.0.1:${port}`,
@@ -286,7 +294,7 @@ test("sync uploads pending local retro aggregate once without private scan text"
   assert.equal(second.code, 0, second.stderr);
   assert.equal(localScans.length, 1, "delivered state must prevent a second POST");
 
-  server.close();
+  await closeServer(server);
 });
 
 test("sync still uploads pending local scan when local spend DB is corrupt", async () => {
@@ -300,6 +308,7 @@ test("sync still uploads pending local scan when local spend DB is corrupt", asy
   const out = await runCli(["sync"], {
     ...process.env,
     HOME: home,
+    USERPROFILE: home,
     CAVEMAN_HOME: caveDir,
     CAVE_TOKEN: "ci-token",
     CAVE_API_URL: `http://127.0.0.1:${port}`,
@@ -310,7 +319,7 @@ test("sync still uploads pending local scan when local spend DB is corrupt", asy
   assert.equal(localScans[0].auth, "Bearer ci-token");
   assert.match(out.stdout, /synced 30-day local scan · inferred token summary · separate from gateway spend and verified savings/);
   assert.match(out.stderr, /sync incomplete.*local spans/i);
-  server.close();
+  await closeServer(server);
 });
 
 test("sync uploads stable practice ids and token rates without local evidence", async () => {
@@ -321,6 +330,7 @@ test("sync uploads stable practice ids and token rates without local evidence", 
   const env = {
     ...process.env,
     HOME: home,
+    USERPROFILE: home,
     CAVEMAN_HOME: caveDir,
     CAVE_TOKEN: "ci-token",
     CAVE_API_URL: `http://127.0.0.1:${port}`,
@@ -372,7 +382,7 @@ test("sync uploads stable practice ids and token rates without local evidence", 
   assert.doesNotMatch(practiceFindings[0].body, /Users|secret|title|suggestion|evidence|raw/);
   assert.match(out.stdout, /synced 1 local practice findings? · basis: inferred \(tokens only; no payload evidence\)/);
 
-  server.close();
+  await closeServer(server);
 });
 
 // A failed import must NOT advance the watermark: the next sync retries the
@@ -388,7 +398,7 @@ test("sync does not advance the watermark when the server rejects the import", a
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const { db, insert } = makeSpendDb(caveDir);
   insert("req-1", 1000, 400);
@@ -405,8 +415,8 @@ test("sync does not advance the watermark when the server rejects the import", a
   assert.equal(imports.length, 1, "the retry must re-send the unsynced span");
   assert.equal(imports[0].rowCount, 1);
 
-  server.close();
-  okServer.close();
+  await closeServer(server);
+  await closeServer(okServer);
 });
 
 // After a successful login, the CLI runs the same sync once automatically and
@@ -457,7 +467,7 @@ test("login auto-syncs local inferred savings once", { skip: "Cloud login disabl
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
   delete env.CAVE_TOKEN;
 
   const { db, insert } = makeSpendDb(caveDir);
@@ -489,7 +499,7 @@ test("login auto-syncs local inferred savings once", { skip: "Cloud login disabl
   assert.equal(localScans[0].auth, `Bearer ${TOKEN}`);
   assert.match(login.stderr, /synced 30-day local scan · inferred token summary · separate from gateway spend and verified savings/);
 
-  server.close();
+  await closeServer(server);
 });
 
 test("login still uploads pending local scan when local spend DB is corrupt", { skip: "Cloud login disabled during beta" }, async () => {
@@ -520,7 +530,7 @@ test("login still uploads pending local scan when local spend DB is corrupt", { 
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
   writeFileSync(join(caveDir, "caveman.db"), "not a sqlite database");
   writePendingLocalScan(home);
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_NO_KEYCHAIN: "1" };
   delete env.CAVE_TOKEN;
 
   const out = await runCli(["login", "--base-url", `http://127.0.0.1:${port}`], env);
@@ -529,7 +539,7 @@ test("login still uploads pending local scan when local spend DB is corrupt", { 
   assert.equal(localScans[0].auth, `Bearer ${TOKEN}`);
   assert.match(out.stderr, /local spans sync skipped/i);
   assert.match(out.stderr, /synced 30-day local scan · inferred token summary · separate from gateway spend and verified savings/);
-  server.close();
+  await closeServer(server);
 });
 
 // A local DB reset (e.g. `make reset-local` wipes ~/.caveman) restarts rowids at
@@ -540,7 +550,7 @@ test("sync re-reads from the start after the local DB is reset", async () => {
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const first = makeSpendDb(caveDir);
   first.insert("req-1", 1000, 400);
@@ -572,7 +582,7 @@ test("sync re-reads from the start after the local DB is reset", async () => {
   assert.equal(imports[1].rowCount, 2, "both fresh rows upload, not skipped by the stale watermark");
   assert.match(imports[1].body, /"span_id":"reset-1"/);
 
-  server.close();
+  await closeServer(server);
 });
 
 // Locally compressed SUBSCRIPTION traffic (Claude Pro/Max) must sync as tokens:
@@ -585,7 +595,7 @@ test("sync carries subscription token savings with auth_mode and zero dollars", 
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   // Full-shape store: the columns the standalone proxy actually writes, including
   // the three the older fixture omits (token_usage_basis, auth_mode, counter basis).
@@ -632,7 +642,7 @@ test("sync carries subscription token savings with auth_mode and zero dollars", 
   assert.match(out.stdout, /never affect managed budgets, verified savings, or billing/);
   assert.match(out.stdout, /Subscription\/OAuth sessions carry token counts only — no dollar figure/);
 
-  server.close();
+  await closeServer(server);
 });
 
 test("sync refuses a compression headline when cache writes exceed cache reads", async () => {
@@ -640,7 +650,7 @@ test("sync refuses a compression headline when cache writes exceed cache reads",
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const { db, insert } = makeSpendDb(caveDir);
   db.exec("ALTER TABLE requests ADD COLUMN cache_creation_input_tokens INTEGER");
@@ -659,7 +669,7 @@ test("sync refuses a compression headline when cache writes exceed cache reads",
   assert.equal(span.attributes["cave.cache_creation_input_tokens"], "144000", "cache writes must reach imported span metadata");
   assert.equal(span.cached_input_tokens, 50000, "cache reads remain in the first-class span counter");
 
-  server.close();
+  await closeServer(server);
 });
 
 // Review M12: the wrap-directive label is bounded by the marker's installed_at.
@@ -671,7 +681,7 @@ test("sync labels only rows created at or after a directive's install", async ()
   const port = await listen(server);
   const home = mkdtempSync(join(tmpdir(), "cave-home-"));
   const caveDir = mkdtempSync(join(tmpdir(), "cave-dot-"));
-  const env = { ...process.env, HOME: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
+  const env = { ...process.env, HOME: home, USERPROFILE: home, CAVEMAN_HOME: caveDir, CAVE_TOKEN: "ci-token", CAVE_API_URL: `http://127.0.0.1:${port}` };
 
   const { db, insert } = makeSpendDb(caveDir); // fixture rows are ts 2026-07-01
   insert("req-backlog", 1000, 400);
@@ -704,5 +714,5 @@ test("sync labels only rows created at or after a directive's install", async ()
   assert.equal(backlog.attributes["cave.directives"], undefined, "pre-install backlog rows must carry no directive label");
   assert.equal(after.attributes["cave.directives"], "exploration-offload-directive", "post-install rows carry the directive id; a marker without installed_at labels nothing");
 
-  server.close();
+  await closeServer(server);
 });

@@ -7,6 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const cli = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.js");
+const unixOnly = { skip: process.platform === "win32" ? "Unix shell-script fixture" : false };
 
 // Spawn the CLI with a stub agent binary on PATH, isolated HOME (so the loadout
 // hook installer and gateway resolution never touch the real home dir), and no
@@ -93,7 +94,7 @@ function runLockedClaude(routes, { harness = "pi", mutateDuringCheck = false } =
 // native path can't hold (here: caveman-mcp/proxy binaries missing) it must
 // warn and fall back to exactly the `caveman wrap claude` behavior: launch the
 // agent with the local-proxy base URL injected.
-test("caveman claude falls back to wrap when native enable cannot hold", async () => {
+test("caveman claude falls back to wrap when native enable cannot hold", unixOnly, async () => {
   const out = await runShortcut("claude", ["claude"]);
   assert.equal(out.code, 0, `cli exited ${out.code}: ${out.stderr}`);
   assert.match(out.stderr, /native enable failed: .*using session-only wrap for this run/);
@@ -103,28 +104,28 @@ test("caveman claude falls back to wrap when native enable cannot hold", async (
 });
 
 // Everything after the agent name passes to the agent verbatim — flags included.
-test("caveman claude passes trailing args to the agent verbatim", async () => {
+test("caveman claude passes trailing args to the agent verbatim", unixOnly, async () => {
   const out = await runShortcut("claude", ["claude", "--resume", "-p", "hi"]);
   assert.equal(out.code, 0, `cli exited ${out.code}: ${out.stderr}`);
   const [agentArgs] = out.stdout.split("|");
   assert.equal(userAgentArgs(agentArgs), "--resume -p hi", "trailing flags must reach the agent untouched");
 });
 
-test("caveman claude --off hoists --off into wrap mode", async () => {
+test("caveman claude --off hoists --off into wrap mode", unixOnly, async () => {
   const out = await runShortcut("claude", ["claude", "--off"]);
   assert.equal(out.code, 0, `cli exited ${out.code}: ${out.stderr}`);
   const [agentArgs] = out.stdout.split("|");
   assert.equal(userAgentArgs(agentArgs), "", "--off is a Caveman wrap flag and must not reach user args");
 });
 
-test("caveman claude leaves --pixel-models as an agent argument", async () => {
+test("caveman claude leaves --pixel-models as an agent argument", unixOnly, async () => {
   const out = await runShortcut("claude", ["claude", "--pixel-models", "claude-fable-5"]);
   assert.equal(out.code, 0, `cli exited ${out.code}: ${out.stderr}`);
   const [agentArgs] = out.stdout.split("|");
   assert.equal(userAgentArgs(agentArgs), "--pixel-models claude-fable-5", "--pixel-models moved to config and must not be hoisted");
 });
 
-test("Claude wrapper rejects Pi-specific Cave Build before agent launch", async () => {
+test("Claude wrapper rejects Pi-specific Cave Build before agent launch", unixOnly, async () => {
   const out = await runLockedClaude([{
     segment_kind: "history",
     transform_id: "caveman.engine.json.v1",
@@ -135,14 +136,14 @@ test("Claude wrapper rejects Pi-specific Cave Build before agent launch", async 
   assert.match(out.stderr, /Cave Build is Pi-specific/);
 });
 
-test("Claude-specific Cave Build fails closed until full plan is enforceable", async () => {
+test("Claude-specific Cave Build fails closed until full plan is enforceable", unixOnly, async () => {
   const out = await runLockedClaude([], { harness: "claude" });
   assert.notEqual(out.code, 0);
   assert.equal(out.stdout, "");
   assert.match(out.stderr, /model, reasoning, budget, recovery, and wire selectors are enforced/);
 });
 
-test("Claude wrapper rejects lock changed during checker validation", async () => {
+test("Claude wrapper rejects lock changed during checker validation", unixOnly, async () => {
   const out = await runLockedClaude([], { harness: "claude", mutateDuringCheck: true });
   assert.notEqual(out.code, 0);
   assert.equal(out.stdout, "");
@@ -151,7 +152,7 @@ test("Claude wrapper rejects lock changed during checker validation", async () =
 
 // The shortcut resolves binary names too (findAgent matches binary_names), and
 // a non-agent unknown command must still fail loudly, not silently wrap.
-test("unknown command still errors; agent shortcut does not swallow typos", async () => {
+test("unknown command still errors; agent shortcut does not swallow typos", unixOnly, async () => {
   const out = await runShortcut("claude", ["clade"]);
   assert.notEqual(out.code, 0, "a typo'd command must exit non-zero");
   assert.match(out.stderr, /unknown command "clade" — did you mean `caveman claude`\?/);
@@ -203,7 +204,7 @@ function runWithEnv(env, cliArgs) {
   });
 }
 
-test("caveman claude enables the native integration and launches the agent directly", async () => {
+test("caveman claude enables the native integration and launches the agent directly", unixOnly, async () => {
   const { env, home } = nativeShortcutEnv();
   const out = await runWithEnv(env, ["claude", "-p", "hi"]);
   assert.equal(out.code, 0, `cli exited ${out.code}: ${out.stderr}`);
@@ -227,7 +228,7 @@ test("caveman claude enables the native integration and launches the agent direc
 // timeout(1)/supervisors SIGTERM the launcher pid, not the process group. The
 // launcher must forward it to the child and then die by the same signal so
 // callers see a signal death, not a clean exit.
-test("process-directed SIGTERM reaches the child and re-raises on the launcher", async () => {
+test("process-directed SIGTERM reaches the child and re-raises on the launcher", unixOnly, async () => {
   const { env, home } = nativeShortcutEnv();
   const setup = await runWithEnv(env, ["claude", "-p", "hi"]);
   assert.equal(setup.code, 0, `enable run exited ${setup.code}: ${setup.stderr}`);
@@ -248,7 +249,7 @@ test("process-directed SIGTERM reaches the child and re-raises on the launcher",
   assert.throws(() => process.kill(stubPid, 0), "forwarded SIGTERM must terminate the child");
 });
 
-test("caveman claude --off keeps the session-only wrap door even when native binaries conform", async () => {
+test("caveman claude --off keeps the session-only wrap door even when native binaries conform", unixOnly, async () => {
   const { env } = nativeShortcutEnv();
   const out = await runWithEnv(env, ["claude", "--off"]);
   assert.equal(out.code, 0, `cli exited ${out.code}: ${out.stderr}`);

@@ -101,7 +101,7 @@ test("a harness that never exits is still measured, then stopped", unixOnly, () 
   assert.ok(elapsed < 20, `stopped on the grace window (${elapsed.toFixed(1)}s), not the full timeout`);
 });
 
-test("stdout never claims savings or dollars", () => {
+test("stdout never claims savings or dollars", unixOnly, () => {
   const binDir = mkdtempSync(join(tmpdir(), "sat-bin4-"));
   const outDir = mkdtempSync(join(tmpdir(), "sat-out4-"));
   writeFileSync(join(binDir, "claude"), FAKE_CLAUDE, { mode: 0o755 });

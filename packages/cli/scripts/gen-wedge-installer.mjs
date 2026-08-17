@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +15,13 @@ export const BINARY_RELEASE = ${JSON.stringify(release)};
 export const BINARY_RELEASE_BASE_DEFAULT = ${JSON.stringify(releaseBase)};
 export const BINARY_SIGNING_PUBKEY = ${JSON.stringify(publicKey)};
 `;
+const installer = readFileSync(source);
+
+function writeIfChanged(path, content) {
+  const desired = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  if (existsSync(path) && readFileSync(path).equals(desired)) return;
+  writeFileSync(path, desired);
+}
 
 for (const target of [
   join(publicRoot, "shared", "binary-installer"),
@@ -23,9 +30,9 @@ for (const target of [
   join(stackRoot, "browse", "bin"),
 ]) {
   if (!existsSync(target)) continue;
-  writeFileSync(join(target, "release.generated.mjs"), generated);
+  writeIfChanged(join(target, "release.generated.mjs"), generated);
   if (target !== join(publicRoot, "shared", "binary-installer")) {
-    copyFileSync(source, join(target, "binary-installer.generated.mjs"));
+    writeIfChanged(join(target, "binary-installer.generated.mjs"), installer);
   }
 }
 console.log(`generated standalone wedge installers for ${release}`);

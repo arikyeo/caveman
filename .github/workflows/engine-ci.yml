@@ -47,6 +47,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - run: pnpm -r test
+        timeout-minutes: 15
         env:
           CAVEMAN_TEST_PROXY_BIN: ${{ runner.temp }}/caveman-proxy
 
@@ -127,7 +128,15 @@ jobs:
       - name: Prebuild caveman-proxy for conformance tests
         run: go build -o "$env:RUNNER_TEMP\caveman-proxy.exe" ./proxy/cmd/caveman-proxy
       - run: pnpm -r build
-      - run: pnpm -r test
+      # Full workspace suite uses POSIX fixture executables and runs above on
+      # Ubuntu. Windows exercises native packages plus CLI surfaces whose
+      # fixtures are platform-safe, then the dedicated compatibility gate.
+      - name: Run Windows-safe workspace package tests
+        run: pnpm --filter caveman-mcp --filter cavemem --filter caveman-browse --filter caveman-shrink test
+        env:
+          CAVEMAN_TEST_PROXY_BIN: ${{ runner.temp }}\caveman-proxy.exe
+      - name: Run Windows-safe CLI tests
+        run: node --test packages/cli/tests/login.runtime.mjs packages/cli/tests/receipts.runtime.mjs packages/cli/tests/setup-install.runtime.mjs packages/cli/tests/sync.runtime.mjs
         env:
           CAVEMAN_TEST_PROXY_BIN: ${{ runner.temp }}\caveman-proxy.exe
       - run: node --test tests/*.js

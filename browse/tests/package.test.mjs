@@ -2,10 +2,16 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 const packageRoot = resolve(import.meta.dirname, "..");
+
+function runNpm(args, options) {
+  if (process.platform !== "win32") return spawnSync("npm", args, options);
+  const npmCli = join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  return spawnSync(process.execPath, [npmCli, ...args], options);
+}
 
 test("packed caveman-browse installs and launches an explicit verified binary", () => {
   const root = mkdtempSync(join(tmpdir(), "caveman-browse-package-"));
@@ -14,7 +20,7 @@ test("packed caveman-browse installs and launches an explicit verified binary", 
   try {
     mkdirSync(packed, { recursive: true });
     const env = { ...process.env, NPM_CONFIG_CACHE: join(root, "npm-cache") };
-    const pack = spawnSync("npm", ["pack", "--json", "--pack-destination", packed], {
+    const pack = runNpm(["pack", "--json", "--pack-destination", packed], {
       cwd: packageRoot,
       env,
       encoding: "utf8",
@@ -30,7 +36,7 @@ test("packed caveman-browse installs and launches an explicit verified binary", 
     assert.equal([...names].some((name) => name.startsWith("dist/")), false);
 
     const tarball = join(packed, metadata.filename);
-    const install = spawnSync("npm", [
+    const install = runNpm([
       "install", "--ignore-scripts", "--no-audit", "--no-fund", "--prefix", consumer, tarball,
     ], { env, encoding: "utf8" });
     assert.equal(install.status, 0, install.stderr);
