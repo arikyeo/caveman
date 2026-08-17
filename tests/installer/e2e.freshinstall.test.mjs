@@ -409,7 +409,7 @@ test('openclaw install writes skill folder + SOUL.md bootstrap', () => {
     assert.ok(fs.existsSync(skillFile), 'skill SKILL.md missing');
     const skillRaw = fs.readFileSync(skillFile, 'utf8');
     assert.match(skillRaw, /^---\n/, 'skill missing frontmatter');
-    assert.match(skillRaw, /\nversion:\s*1\.10\.0/, 'skill version must match pinned installer ref');
+    assert.match(skillRaw, /\nversion:\s*2\.1\.0/, 'skill version must match pinned installer ref');
     assert.match(skillRaw, /\nalways:\s*true/, 'skill missing always: true frontmatter');
 
     // Body after the merged frontmatter must match the source body.
