@@ -125,7 +125,7 @@ function parseModeChange(promptRaw, options) {
   // Capture the first line before whitespace collapse. The expandedTpl
   // templates (opencode's commands/caveman.md etc.) put $ARGUMENTS at the end
   // of the first line, followed by a blank line and then fixed boilerplate
-  // ("If no level given, use full. If \"off\", deactivate."). Collapsing all
+  // ("If no level given, use ultra. If \"off\", deactivate."). Collapsing all
   // whitespace to single spaces (below) merges an EMPTY argument directly
   // into that boilerplate, so a bare `/caveman` with no level looked like the
   // level was the word "if" and got rejected as bogus. Extract the template

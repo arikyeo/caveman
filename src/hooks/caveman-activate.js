@@ -115,7 +115,7 @@ function fallbackGetDefaultMode(startDir) {
     }
   } catch (e) { /* fall through to user config */ }
   // 3. User config, then 4. the built-in default.
-  return fallbackReadMode(fallbackUserConfigPath()) || 'full';
+  return fallbackReadMode(fallbackUserConfigPath()) || 'ultra';
 }
 
 // Degraded stubs keep the rest of this hook working when the config module is

@@ -9,7 +9,7 @@ If you installed caveman standalone (without the plugin), the unified Node insta
 ### `caveman-activate.js` — SessionStart hook
 
 - Runs once when Claude Code starts
-- Writes `full` to `$CLAUDE_CONFIG_DIR/.caveman-active` (default `~/.claude/.caveman-active`) via the symlink-safe `safeWriteFlag` helper
+- Writes `ultra` to `$CLAUDE_CONFIG_DIR/.caveman-active` (default `~/.claude/.caveman-active`) via the symlink-safe `safeWriteFlag` helper
 - Emits caveman rules as hidden SessionStart context
 - Detects missing statusline config and emits setup nudge (Claude will offer to help)
 
@@ -84,7 +84,7 @@ Badge examples:
 ## How It Works
 
 ```
-SessionStart hook ──writes "full"──▶ $CLAUDE_CONFIG_DIR/.caveman-active ◀──writes mode── UserPromptSubmit hook
+SessionStart hook ──writes "ultra"──▶ $CLAUDE_CONFIG_DIR/.caveman-active ◀──writes mode── UserPromptSubmit hook
                                               │
                                            reads
                                               ▼

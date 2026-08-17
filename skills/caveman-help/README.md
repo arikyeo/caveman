@@ -18,8 +18,9 @@ Also triggers on "caveman help", "what caveman commands", "how do I use caveman"
 
 ```
 Modes:
-  /caveman              full (default)
+  /caveman              ultra (default)
   /caveman lite         lighter
+  /caveman full         classic
   /caveman ultra        extreme
   /caveman wenyan       classical Chinese
 

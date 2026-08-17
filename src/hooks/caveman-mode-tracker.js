@@ -62,7 +62,7 @@ const { getDefaultMode, safeWriteFlag, readFlag, recordModeChange, VALID_MODES }
   m && typeof m.getDefaultMode === 'function' && typeof m.safeWriteFlag === 'function'
     && typeof m.readFlag === 'function' && typeof m.recordModeChange === 'function'
     && Array.isArray(m.VALID_MODES)) || {
-  getDefaultMode: () => 'full',
+  getDefaultMode: () => 'ultra',
   safeWriteFlag: () => {},
   readFlag: () => null,
   recordModeChange: () => {},

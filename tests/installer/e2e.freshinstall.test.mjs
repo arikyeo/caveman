@@ -426,6 +426,7 @@ test('openclaw install writes skill folder + SOUL.md bootstrap', () => {
     assert.match(soulRaw, /<!-- caveman-begin -->/, 'SOUL.md missing begin marker');
     assert.match(soulRaw, /<!-- caveman-end -->/, 'SOUL.md missing end marker');
     assert.match(soulRaw, /Respond terse like smart caveman/, 'SOUL.md missing sentinel');
+    assert.match(soulRaw, /Default intensity: `ultra`\./, 'SOUL.md must default to ultra');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

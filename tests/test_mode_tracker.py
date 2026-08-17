@@ -100,7 +100,7 @@ class ModeTrackerTests(unittest.TestCase):
         # deactivation regex matched "caveman and stop" and deleted the flag.
         self.flag.write_text("full", encoding="utf-8")
         self.send("enable caveman and stop apologizing")
-        self.assertEqual(self.flag_value(), "full")
+        self.assertEqual(self.flag_value(), "ultra")
 
     def test_question_does_not_activate(self):
         self.send("what is caveman mode?")
@@ -114,28 +114,32 @@ class ModeTrackerTests(unittest.TestCase):
 
     def test_unscoped_brevity_activates(self):
         self.send("be brief")
-        self.assertEqual(self.flag_value(), "full")
+        self.assertEqual(self.flag_value(), "ultra")
 
     def test_activate_caveman_still_works(self):
         self.send("activate caveman")
-        self.assertEqual(self.flag_value(), "full")
+        self.assertEqual(self.flag_value(), "ultra")
 
     def test_turn_on_caveman_mode_still_works(self):
         self.send("turn on caveman mode")
-        self.assertEqual(self.flag_value(), "full")
+        self.assertEqual(self.flag_value(), "ultra")
 
     def test_talk_like_caveman_still_works(self):
         self.send("talk like a caveman")
-        self.assertEqual(self.flag_value(), "full")
+        self.assertEqual(self.flag_value(), "ultra")
 
     def test_bare_caveman_mode_still_works(self):
         self.send("caveman mode")
-        self.assertEqual(self.flag_value(), "full")
+        self.assertEqual(self.flag_value(), "ultra")
 
     # ── slash commands ──────────────────────────────────────────────────
 
     def test_slash_caveman_level_switch(self):
         self.send("/caveman ultra")
+        self.assertEqual(self.flag_value(), "ultra")
+
+    def test_bare_slash_caveman_uses_ultra_default(self):
+        self.send("/caveman")
         self.assertEqual(self.flag_value(), "ultra")
 
     def test_slash_caveman_off(self):

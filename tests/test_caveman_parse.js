@@ -365,7 +365,7 @@ const parityCases = [
 for (const { prompt, preset } of parityCases) {
   test(`parity: "${prompt}" (preset=${preset}) matches shared-parser verdict`, () => {
     const normalized = prompt.trim().toLowerCase().replace(/\s+/g, ' ');
-    const verdict = parseModeChange(normalized, { getDefaultMode: () => 'full' });
+    const verdict = parseModeChange(normalized, { getDefaultMode: () => 'ultra' });
     // null and 'unresolved' both mean "leave the flag exactly as it was".
     const expected =
       verdict === null ? (preset || null) :

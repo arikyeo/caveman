@@ -342,6 +342,44 @@ test('opencode uninstall removes plugin dir, command/agent/skill files, prunes o
 // parsing, `experimental.chat.system.transform` for reinforcement, and the
 // `event` dispatcher (filtering event.type === 'session.created') for session
 // init. This test drives those real hooks.
+test('opencode plugin defaults session and bare /caveman to ultra without overrides', async () => {
+  const xdg = freshTmpDir();
+  const shimDir = shimOpencode();
+  const origXdg = process.env.XDG_CONFIG_HOME;
+  const origDefault = process.env.CAVEMAN_DEFAULT_MODE;
+  try {
+    const env = { ...process.env, XDG_CONFIG_HOME: xdg, PATH: pathWith(shimDir), NO_COLOR: '1' };
+    delete env.CAVEMAN_DEFAULT_MODE;
+    const r = runInstaller(['--only', 'opencode'], env);
+    assert.notEqual(r.status, 2);
+
+    const pluginPath = path.join(xdg, 'opencode', 'plugins', 'caveman', 'plugin.js');
+    const flagPath = path.join(xdg, 'opencode', '.caveman-active');
+    process.env.XDG_CONFIG_HOME = xdg;
+    delete process.env.CAVEMAN_DEFAULT_MODE;
+
+    const mod = await import(`${pathToFileURL(pluginPath).href}?default-ultra=${Date.now()}`);
+    const factory = mod.default || mod.CavemanPlugin;
+    const handlers = await factory({});
+    assert.equal(fs.readFileSync(flagPath, 'utf8'), 'ultra', 'factory-time session default');
+
+    fs.rmSync(flagPath, { force: true });
+    await handlers.event({ event: { type: 'session.created' } });
+    assert.equal(fs.readFileSync(flagPath, 'utf8'), 'ultra', 'session.created default');
+
+    fs.rmSync(flagPath, { force: true });
+    await handlers['chat.message']({}, { parts: [{ type: 'text', text: '/caveman' }] });
+    assert.equal(fs.readFileSync(flagPath, 'utf8'), 'ultra', 'bare /caveman default');
+  } finally {
+    if (origXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = origXdg;
+    if (origDefault === undefined) delete process.env.CAVEMAN_DEFAULT_MODE;
+    else process.env.CAVEMAN_DEFAULT_MODE = origDefault;
+    fs.rmSync(xdg, { recursive: true, force: true });
+    fs.rmSync(shimDir, { recursive: true, force: true });
+  }
+});
+
 test('opencode plugin handles /caveman ultra, stop caveman, and session init via real hooks', async () => {
   const xdg = freshTmpDir();
   const shimDir = shimOpencode();

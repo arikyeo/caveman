@@ -55,10 +55,14 @@ function makeInstall(omit = []) {
 function runHook(hooks, name, { stdin = '', env = {} } = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'caveman-home-'));
   try {
+    const childEnv = { ...process.env, CLAUDE_CONFIG_DIR: home, ...env };
+    if (!Object.prototype.hasOwnProperty.call(env, 'CAVEMAN_DEFAULT_MODE')) {
+      delete childEnv.CAVEMAN_DEFAULT_MODE;
+    }
     return spawnSync(process.execPath, [path.join(hooks, name)], {
       input: stdin,
       encoding: 'utf8',
-      env: { ...process.env, CLAUDE_CONFIG_DIR: home, ...env },
+      env: childEnv,
     });
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
@@ -92,7 +96,7 @@ test('exits 0 instead of crashing with MODULE_NOT_FOUND', () => {
 test('still emits a usable ruleset so a degraded session keeps caveman', () => {
   withInstall(['caveman-config.js'], ({ hooks }) => {
     const r = runHook(hooks, 'caveman-activate.js', { stdin: SESSION_START });
-    assert.match(r.stdout, /CAVEMAN MODE ACTIVE/, 'ruleset must still be injected');
+    assert.match(r.stdout, /CAVEMAN MODE ACTIVE — level: ultra/, 'degraded ruleset must use ultra');
   });
 });
 
@@ -251,11 +255,15 @@ console.log('\ndegrading must not INVERT a persisted opt-out');
 function runActivateIn(hooks, cwd, env = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'caveman-home-'));
   try {
+    const childEnv = { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home, ...env };
+    if (!Object.prototype.hasOwnProperty.call(env, 'CAVEMAN_DEFAULT_MODE')) {
+      delete childEnv.CAVEMAN_DEFAULT_MODE;
+    }
     return spawnSync(process.execPath, [path.join(hooks, 'caveman-activate.js')], {
       input: SESSION_START,
       encoding: 'utf8',
       cwd,
-      env: { ...process.env, CLAUDE_CONFIG_DIR: home, HOME: home, USERPROFILE: home, ...env },
+      env: childEnv,
     });
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
@@ -302,8 +310,13 @@ test('degraded resolution still activates when nothing opts out', () => {
   withInstall(['caveman-config.js'], ({ hooks, root }) => {
     const cwd = path.join(root, 'plain2');
     fs.mkdirSync(cwd, { recursive: true });
-    assert.match(runActivateIn(hooks, cwd).stdout, /CAVEMAN MODE ACTIVE/);
+    assert.match(runActivateIn(hooks, cwd).stdout, /CAVEMAN MODE ACTIVE — level: ultra/);
   });
+});
+
+test('mode-tracker degraded fallback is ultra', () => {
+  const tracker = fs.readFileSync(path.join(HOOKS_DIR, 'caveman-mode-tracker.js'), 'utf8');
+  assert.match(tracker, /getDefaultMode:\s*\(\)\s*=>\s*'ultra'/);
 });
 
 test('degraded fallback mode list matches caveman-config exactly', () => {

@@ -71,6 +71,7 @@ test("skills install writes caveman SKILL.md, matching the canonical artifact", 
   assert.ok(existsSync(dest), "must write SKILL.md");
   const written = readFileSync(dest, "utf8");
   assert.match(written, /^---\nname: caveman\n/, "valid skill frontmatter");
+  assert.match(written, /Default: \*\*ultra\*\*\./, "embedded Caveman skill must default to ultra");
   assert.equal(
     written,
     readFileSync(canonicalCaveman, "utf8"),
