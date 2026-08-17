@@ -225,7 +225,7 @@ test('rewriteLegacyManagedHookCommands rewrites bare-node managed scripts', () =
       ] }],
     },
   };
-  const n = SETTINGS.rewriteLegacyManagedHookCommands(s, '/usr/local/bin/node');
+  const n = SETTINGS.rewriteLegacyManagedHookCommands(s, '/usr/local/bin/node', 'darwin');
   assert.equal(n, 1);
   assert.match(s.hooks.SessionStart[0].hooks[0].command, /"\/usr\/local\/bin\/node" "\/abs\/hooks\/caveman-activate\.js"/);
   assert.equal(s.hooks.SessionStart[0].hooks[1].command, 'node /abs/hooks/some-user-hook.js');
