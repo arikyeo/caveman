@@ -58,22 +58,40 @@ test('shared Claude and Gemini descriptor adds one session-only Caveman reminder
   const hook = descriptor.hooks.SessionStart[0].hooks[0];
   assert.deepEqual(Object.keys(hook).sort(), ['command', 'type']);
   assert.equal(hook.type, 'command');
-  assert.doesNotMatch(hook.command, /CLAUDE_PLUGIN_ROOT|extensionPath|UserPromptSubmit/);
+  assert.doesNotMatch(
+    hook.command,
+    /\bnode(?:\.exe)?\b|\bPATH\b|CLAUDE_PLUGIN_ROOT|extensionPath|UserPromptSubmit/,
+  );
 
-  const result = childProcess.spawnSync(hook.command, {
-    cwd: ROOT,
-    encoding: 'utf8',
-    shell: true,
-    timeout: 5_000,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr, '');
-  assert.deepEqual(JSON.parse(result.stdout), {
+  const expectedOutput = {
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
       additionalContext: expectedContext,
     },
-  });
+  };
+  assert.equal(hook.command, `echo '${JSON.stringify(expectedOutput)}'`);
+
+  const shells =
+    process.platform === 'win32'
+      ? [
+          ['PowerShell', 'powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', hook.command]],
+          ['Git Bash', 'bash.exe', ['-lc', hook.command]],
+        ]
+      : [
+          ['POSIX sh', '/bin/sh', ['-c', hook.command]],
+          ['Bash', 'bash', ['-lc', hook.command]],
+        ];
+
+  for (const [name, executable, args] of shells) {
+    const result = childProcess.spawnSync(executable, args, {
+      cwd: ROOT,
+      encoding: 'utf8',
+      timeout: 5_000,
+    });
+    assert.equal(result.status, 0, `${name}: ${result.error || result.stderr}`);
+    assert.equal(result.stderr, '', name);
+    assert.deepEqual(JSON.parse(result.stdout), expectedOutput, name);
+  }
 });
 
 test('installer describes session-only plugin behavior without implying a per-prompt hook', () => {

@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'SessionStart',additionalContext:'Replies, plans, and subagent prose: English Caveman-ultra. Terse fragments; preserve all technical facts, literals, evidence, uncertainty, and safety. Clarity overrides brevity. Nested agents inherit.'}}))\""
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Replies, plans, and subagent prose: English Caveman-ultra. Terse fragments; preserve all technical facts, literals, evidence, uncertainty, and safety. Clarity overrides brevity. Nested agents inherit.\"}}'"
           }
         ]
       }
