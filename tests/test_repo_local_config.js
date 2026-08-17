@@ -166,6 +166,8 @@ test('getDefaultMode(startDir) resolves repo config for a directory other than p
     assert.strictEqual(getDefaultMode(), 'ultra', 'process cwd alone should not see the other dir\'s config');
     assert.strictEqual(getDefaultMode(tmp), 'off', 'startDir should resolve that directory\'s repo config');
   } finally {
+    // Windows cannot remove a process' current working directory.
+    process.chdir(tmp);
     fs.rmSync(elsewhere, { recursive: true, force: true });
   }
 });

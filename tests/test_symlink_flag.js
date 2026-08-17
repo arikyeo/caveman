@@ -15,8 +15,29 @@ const { safeWriteFlag, readFlag, VALID_MODES } = require('../src/hooks/caveman-c
 let passed = 0;
 let failed = 0;
 
+function symlinkDirectory(target, link) {
+  fs.symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir');
+}
+
+function trySymlinkFile(target, link) {
+  try {
+    fs.symlinkSync(target, link, 'file');
+    return true;
+  } catch (error) {
+    if (process.platform === 'win32' && (error.code === 'EPERM' || error.code === 'EACCES')) {
+      console.log('    (skipped: file symlink requires Windows developer mode)');
+      return false;
+    }
+    throw error;
+  }
+}
+
 function test(name, fn) {
-  const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'caveman-symlink-test-'));
+  // Windows policy allows a symlinked config parent only when its resolved
+  // target stays under the current user's home. Hosted-runner TEMP is on D:\,
+  // outside C:\Users\runneradmin, so build the security fixture under HOME.
+  const fixtureRoot = process.platform === 'win32' ? os.homedir() : os.tmpdir();
+  const tmpBase = fs.mkdtempSync(path.join(fixtureRoot, 'caveman-symlink-test-'));
   try {
     fn(tmpBase);
     passed++;
@@ -49,7 +70,7 @@ test('writes flag when parent directory is a symlink owned by current user', (tm
   const realDir = path.join(tmp, 'real-claude-config');
   fs.mkdirSync(realDir, { recursive: true });
   const symlinkDir = path.join(tmp, 'claude-symlink');
-  fs.symlinkSync(realDir, symlinkDir);
+  symlinkDirectory(realDir, symlinkDir);
 
   const flagPath = path.join(symlinkDir, '.caveman-active');
   safeWriteFlag(flagPath, 'ultra');
@@ -64,7 +85,7 @@ test('readFlag works through symlinked parent directory', (tmp) => {
   const realDir = path.join(tmp, 'real-claude-config');
   fs.mkdirSync(realDir, { recursive: true });
   const symlinkDir = path.join(tmp, 'claude-symlink');
-  fs.symlinkSync(realDir, symlinkDir);
+  symlinkDirectory(realDir, symlinkDir);
 
   // Write directly to real path, then read through symlink path
   const realFlagPath = path.join(realDir, '.caveman-active');
@@ -78,7 +99,7 @@ test('safeWriteFlag then readFlag round-trip through symlink', (tmp) => {
   const realDir = path.join(tmp, 'real-config');
   fs.mkdirSync(realDir, { recursive: true });
   const symlinkDir = path.join(tmp, 'link-config');
-  fs.symlinkSync(realDir, symlinkDir);
+  symlinkDirectory(realDir, symlinkDir);
 
   const flagPath = path.join(symlinkDir, '.caveman-active');
   safeWriteFlag(flagPath, 'wenyan-ultra');
@@ -92,13 +113,13 @@ test('refuses flag file that is itself a symlink (even through symlinked parent)
   const realDir = path.join(tmp, 'real-config');
   fs.mkdirSync(realDir, { recursive: true });
   const symlinkDir = path.join(tmp, 'link-config');
-  fs.symlinkSync(realDir, symlinkDir);
+  symlinkDirectory(realDir, symlinkDir);
 
   // Create a symlink at the flag file location pointing to some other file
   const decoyFile = path.join(tmp, 'decoy.txt');
   fs.writeFileSync(decoyFile, 'ATTACK');
   const realFlagPath = path.join(realDir, '.caveman-active');
-  fs.symlinkSync(decoyFile, realFlagPath);
+  if (!trySymlinkFile(decoyFile, realFlagPath)) return;
 
   // safeWriteFlag should refuse (flag file is a symlink)
   safeWriteFlag(path.join(symlinkDir, '.caveman-active'), 'full');
@@ -112,7 +133,7 @@ test('readFlag refuses flag file that is a symlink', (tmp) => {
 
   const secretFile = path.join(tmp, 'secret.txt');
   fs.writeFileSync(secretFile, 'SSH_PRIVATE_KEY_CONTENT');
-  fs.symlinkSync(secretFile, path.join(realDir, '.caveman-active'));
+  if (!trySymlinkFile(secretFile, path.join(realDir, '.caveman-active'))) return;
 
   const result = readFlag(path.join(realDir, '.caveman-active'));
   assert.strictEqual(result, null, 'should refuse symlinked flag file');
@@ -124,7 +145,7 @@ test('flag file permissions are 0600 when written through symlink', (tmp) => {
   const realDir = path.join(tmp, 'real-config');
   fs.mkdirSync(realDir, { recursive: true });
   const symlinkDir = path.join(tmp, 'link-config');
-  fs.symlinkSync(realDir, symlinkDir);
+  symlinkDirectory(realDir, symlinkDir);
 
   safeWriteFlag(path.join(symlinkDir, '.caveman-active'), 'full');
 
@@ -138,7 +159,7 @@ test('overwrites existing flag through symlinked parent', (tmp) => {
   const realDir = path.join(tmp, 'real-config');
   fs.mkdirSync(realDir, { recursive: true });
   const symlinkDir = path.join(tmp, 'link-config');
-  fs.symlinkSync(realDir, symlinkDir);
+  symlinkDirectory(realDir, symlinkDir);
 
   const flagPath = path.join(symlinkDir, '.caveman-active');
 
@@ -179,7 +200,7 @@ test('all valid modes round-trip through symlinked parent', (tmp) => {
   const realDir = path.join(tmp, 'real-config');
   fs.mkdirSync(realDir, { recursive: true });
   const symlinkDir = path.join(tmp, 'link-config');
-  fs.symlinkSync(realDir, symlinkDir);
+  symlinkDirectory(realDir, symlinkDir);
 
   const flagPath = path.join(symlinkDir, '.caveman-active');
 

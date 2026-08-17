@@ -18,6 +18,9 @@ function isolatedEnv(extra = {}) {
   delete env.CAVEMAN_TELEMETRY;
   delete env.CAVEMAN_TELEMETRY_URL;
   Object.assign(env, extra);
+  env.HOME = home;
+  env.USERPROFILE = home;
+  delete env.CI;
   return { env, home, caveDir };
 }
 
@@ -49,6 +52,7 @@ function runCli(argv, env, opts = {}) {
 function startTelemetryStub({ hang = false } = {}) {
   const posts = [];
   const sockets = new Set();
+  let closePromise;
   const server = createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c));
@@ -63,7 +67,20 @@ function startTelemetryStub({ hang = false } = {}) {
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
   });
-  return { server, posts, close: () => { for (const socket of sockets) socket.destroy(); server.close(); } };
+  const close = () => {
+    if (closePromise) return closePromise;
+    closePromise = new Promise((resolve) => {
+      for (const socket of sockets) socket.destroy();
+      if (!server.listening) {
+        resolve();
+        return;
+      }
+      server.close(resolve);
+      server.closeAllConnections?.();
+    });
+    return closePromise;
+  };
+  return { server, posts, close };
 }
 
 function listen(server) {
@@ -83,9 +100,11 @@ function listen(server) {
 
 async function listenOrSkip(t, stub) {
   try {
-    return await listen(stub.server);
+    const port = await listen(stub.server);
+    t.after(() => stub.close());
+    return port;
   } catch (error) {
-    stub.close();
+    await stub.close();
     if (error?.code === "EPERM") {
       t.skip("local HTTP server listen denied in this sandbox");
       return null;
@@ -93,6 +112,49 @@ async function listenOrSkip(t, stub) {
     throw error;
   }
 }
+
+test("interactive telemetry fixtures do not inherit CI automation state", () => {
+  const { env } = isolatedEnv({ CI: "true" });
+  assert.equal(env.CI, undefined);
+});
+
+test("isolated telemetry fixtures bind the child Node home on Windows", async () => {
+  const { env, home } = isolatedEnv();
+  assert.equal(env.USERPROFILE, home);
+
+  const childHome = await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["-e", "process.stdout.write(require('node:os').homedir())"], {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (data) => (stdout += data));
+    child.stderr.on("data", (data) => (stderr += data));
+    child.on("error", reject);
+    child.on("exit", (code) => code === 0 ? resolve(stdout) : reject(new Error(stderr || `child exited ${code}`)));
+  });
+  assert.equal(childHome, home);
+});
+
+test("telemetry listener registers one awaited idempotent cleanup", async () => {
+  const cleanups = [];
+  const stub = startTelemetryStub();
+  const port = await listenOrSkip({ after: (cleanup) => cleanups.push(cleanup) }, stub);
+  try {
+    assert.equal(typeof port, "number");
+    assert.equal(cleanups.length, 1);
+
+    const first = cleanups[0]();
+    const second = stub.close();
+    assert.equal(typeof first?.then, "function");
+    assert.equal(first, second);
+    await first;
+    assert.equal(stub.server.listening, false);
+  } finally {
+    if (stub.server.listening) await new Promise((resolve) => stub.server.close(resolve));
+  }
+});
 
 test("non-TTY run does not prompt or post telemetry", async (t) => {
   const stub = startTelemetryStub();
