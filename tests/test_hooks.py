@@ -8,7 +8,36 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BASH = shutil.which("bash")
+
+
+def find_gnu_bash():
+    candidates = []
+    if os.name == "nt":
+        git = shutil.which("git")
+        if git:
+            git_root = Path(git).resolve().parent.parent
+            candidates.extend((git_root / "bin" / "bash.exe", git_root / "usr" / "bin" / "bash.exe"))
+    candidates.append(shutil.which("bash"))
+
+    for candidate in candidates:
+        if candidate is None or not Path(candidate).is_file():
+            continue
+        try:
+            probe = subprocess.run(
+                [str(candidate), "--version"],
+                text=True,
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+        except OSError:
+            continue
+        if probe.returncode == 0 and "GNU bash" in f"{probe.stdout}\n{probe.stderr}":
+            return str(Path(candidate).resolve())
+    return None
+
+
+BASH = find_gnu_bash()
 
 
 class HookScriptTests(unittest.TestCase):
@@ -41,14 +70,14 @@ class HookScriptTests(unittest.TestCase):
             (hooks_dir / "caveman-activate.js").write_text("", encoding="utf-8")
             (hooks_dir / "caveman-mode-tracker.js").write_text("", encoding="utf-8")
 
-            self.run_cmd(["bash", "src/hooks/install.sh"], home)
+            self.run_cmd([BASH, "src/hooks/install.sh"], home)
 
             statusline = hooks_dir / "caveman-statusline.sh"
             self.assertTrue(statusline.exists(), "upgrade should install statusline script")
 
             settings = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
             self.assertIn("statusLine", settings)
-            self.assertIn(str(statusline), settings["statusLine"]["command"])
+            self.assertIn(statusline.as_posix(), settings["statusLine"]["command"].replace("\\", "/"))
 
     def test_install_reconfigures_missing_statusline(self):
         if BASH is None:
@@ -88,13 +117,16 @@ class HookScriptTests(unittest.TestCase):
             }
             (claude_dir / "settings.json").write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
 
-            result = self.run_cmd(["bash", "src/hooks/install.sh"], home)
+            result = self.run_cmd([BASH, "src/hooks/install.sh"], home)
 
             self.assertNotIn("Nothing to do", result.stdout)
 
             updated = json.loads((claude_dir / "settings.json").read_text(encoding="utf-8"))
             self.assertIn("statusLine", updated)
-            self.assertIn(str(hooks_dir / "caveman-statusline.sh"), updated["statusLine"]["command"])
+            self.assertIn(
+                (hooks_dir / "caveman-statusline.sh").as_posix(),
+                updated["statusLine"]["command"].replace("\\", "/"),
+            )
 
     def test_uninstall_preserves_custom_statusline(self):
         if BASH is None:
@@ -138,7 +170,7 @@ class HookScriptTests(unittest.TestCase):
             }
             (claude_dir / "settings.json").write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
 
-            self.run_cmd(["bash", "src/hooks/uninstall.sh"], home)
+            self.run_cmd([BASH, "src/hooks/uninstall.sh"], home)
 
             updated = json.loads((claude_dir / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(

@@ -8,6 +8,7 @@ output is empty or identical to the input, and a backup-write that drops
 bytes is detected before the input is overwritten.
 """
 
+import io
 import os
 import stat
 import sys
@@ -203,6 +204,27 @@ class CompressSafetyTests(unittest.TestCase):
 
             self.assertFalse(ok)
             self.assertNotIn(preamble_fix, written_texts)
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+
+    def test_cp1252_console_cannot_interrupt_validation_rollback(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             tempfile.TemporaryDirectory() as data_home, \
+             mock.patch.dict(os.environ, {"XDG_DATA_HOME": data_home, "LOCALAPPDATA": data_home}):
+            original = "# Heading\n\nProse that fails validation.\n"
+            compressed = "# Heading\n\nCompressed prose.\n"
+            path = self._file_with(Path(tmp), original)
+            invalid = mock.Mock(is_valid=False, errors=["forced validation error"], warnings=[])
+            raw = io.BytesIO()
+            console = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")
+
+            with mock.patch.object(compress_mod, "call_claude", return_value=compressed), \
+                 mock.patch.object(compress_mod, "validate", return_value=invalid), \
+                 mock.patch.object(sys, "stdout", console):
+                ok = compress_mod.compress_file(path)
+
+            console.flush()
+            self.assertFalse(ok)
+            self.assertIn("Validation failed", raw.getvalue().decode("cp1252"))
             self.assertEqual(path.read_text(encoding="utf-8"), original)
 
 

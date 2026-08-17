@@ -27,6 +27,16 @@ FRONTMATTER_REGEX = re.compile(
 )
 
 
+def _console(message: object = "") -> None:
+    """Print without letting a legacy console encoding abort file recovery."""
+    text = f"{message}\n"
+    try:
+        sys.stdout.write(text)
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        sys.stdout.write(text.encode(encoding, errors="replace").decode(encoding))
+
+
 def split_frontmatter(text: str):
     """Split YAML frontmatter from body. Returns (frontmatter, body).
 
@@ -161,7 +171,7 @@ def _write_target(filepath: Path, text: str, backup_path: Path) -> None:
     try:
         write_text_atomic(filepath, text)
     except Exception:
-        print(f"❌ Write to {filepath} failed. Original preserved at backup: {backup_path}")
+        _console(f"❌ Write to {filepath} failed. Original preserved at backup: {backup_path}")
         raise
 
 
@@ -295,10 +305,10 @@ def compress_file(filepath: Path) -> bool:
             "Rename the file if this is a false positive."
         )
 
-    print(f"Processing: {filepath}")
+    _console(f"Processing: {filepath}")
 
     if not should_compress(filepath):
-        print("Skipping (not natural language)")
+        _console("Skipping (not natural language)")
         return False
 
     original_text = filepath.read_text(encoding="utf-8", errors="ignore")
@@ -309,14 +319,14 @@ def compress_file(filepath: Path) -> bool:
     backup_path = backup_dir / (filepath.stem + ".original.md")
 
     if not original_text.strip():
-        print("❌ Refusing to compress: file is empty or whitespace-only.")
+        _console("❌ Refusing to compress: file is empty or whitespace-only.")
         return False
 
     # Check if backup already exists to prevent accidental overwriting
     if backup_path.exists():
-        print(f"⚠️ Backup file already exists: {backup_path}")
-        print("The original backup may contain important content.")
-        print("Aborting to prevent data loss. Please remove or rename the backup file if you want to proceed.")
+        _console(f"⚠️ Backup file already exists: {backup_path}")
+        _console("The original backup may contain important content.")
+        _console("Aborting to prevent data loss. Please remove or rename the backup file if you want to proceed.")
         return False
 
     # Split YAML frontmatter off before compression. Claude tends to strip or
@@ -324,27 +334,27 @@ def compress_file(filepath: Path) -> bool:
     # by removing it from the input and re-prepending it to the output.
     frontmatter, body = split_frontmatter(original_text)
     if frontmatter:
-        print(f"Detected YAML frontmatter ({len(frontmatter)} chars) — preserving verbatim")
+        _console(f"Detected YAML frontmatter ({len(frontmatter)} chars) — preserving verbatim")
 
     if not body.strip():
-        print("❌ Refusing to compress: body is empty after frontmatter removal.")
+        _console("❌ Refusing to compress: body is empty after frontmatter removal.")
         return False
 
     # Step 1: Compress (body only, frontmatter excluded)
-    print("Compressing with Claude...")
+    _console("Compressing with Claude...")
     compressed_body = call_claude(build_compress_prompt(body))
 
     if compressed_body is None or not compressed_body.strip():
-        print("❌ Compression aborted: Claude returned an empty response.")
-        print("   Original file is untouched (no backup created).")
+        _console("❌ Compression aborted: Claude returned an empty response.")
+        _console("   Original file is untouched (no backup created).")
         return False
 
     # Compare the BODY (not the whole file) — frontmatter is preserved verbatim
     # and would never change, so identity must be judged on the compressible part.
     if compressed_body.strip() == body.strip():
-        print("❌ Compression aborted: output is identical to input.")
-        print("   Likely causes: Claude refused, returned the prompt verbatim, or the file is")
-        print("   already in caveman form. Original file is untouched (no backup created).")
+        _console("❌ Compression aborted: output is identical to input.")
+        _console("   Likely causes: Claude refused, returned the prompt verbatim, or the file is")
+        _console("   already in caveman form. Original file is untouched (no backup created).")
         return False
 
     # Reassemble: frontmatter (verbatim) + compressed body
@@ -358,8 +368,8 @@ def compress_file(filepath: Path) -> bool:
     write_text_atomic(backup_path, original_text)
     backup_readback = backup_path.read_text(encoding="utf-8", errors="ignore")
     if backup_readback != original_text:
-        print(f"❌ Backup write verification failed: {backup_path}")
-        print("   In-memory original differs from on-disk backup. Aborting before touching the input file.")
+        _console(f"❌ Backup write verification failed: {backup_path}")
+        _console("   In-memory original differs from on-disk backup. Aborting before touching the input file.")
         try:
             backup_path.unlink()
         except OSError:
@@ -369,33 +379,33 @@ def compress_file(filepath: Path) -> bool:
 
     # Step 2: Validate + Retry
     for attempt in range(MAX_RETRIES):
-        print(f"\nValidation attempt {attempt + 1}")
+        _console(f"\nValidation attempt {attempt + 1}")
 
         result = validate(backup_path, filepath)
 
         if result.is_valid:
-            print("Validation passed")
+            _console("Validation passed")
             break
 
-        print("❌ Validation failed:")
+        _console("❌ Validation failed:")
         for err in result.errors:
-            print(f"   - {err}")
+            _console(f"   - {err}")
 
         if attempt == MAX_RETRIES - 1:
             # Restore original on failure
             _write_target(filepath, original_text, backup_path)
             backup_path.unlink(missing_ok=True)
-            print("❌ Failed after retries — original restored")
+            _console("❌ Failed after retries — original restored")
             return False
 
-        print("Fixing with Claude...")
+        _console("Fixing with Claude...")
         compressed = call_claude(
             build_fix_prompt(original_text, compressed, result.errors)
         )
 
         if compressed is None or not compressed.strip():
-            print("❌ Fix attempt aborted: Claude returned an empty response.")
-            print("   Skipping this attempt.")
+            _console("❌ Fix attempt aborted: Claude returned an empty response.")
+            _console("   Skipping this attempt.")
             continue
 
         # Guard against a prose preamble smuggled in ahead of the real fixed
@@ -405,8 +415,8 @@ def compress_file(filepath: Path) -> bool:
         # them verbatim would reject every valid fix.
         anchor = first_nonblank_line(original_text)
         if anchor.startswith(("---", "#")) and first_nonblank_line(compressed) != anchor:
-            print("❌ Fix attempt aborted: output does not start with the original's first line.")
-            print("   Possible preamble leak. Skipping this attempt.")
+            _console("❌ Fix attempt aborted: output does not start with the original's first line.")
+            _console("   Possible preamble leak. Skipping this attempt.")
             continue
 
         _write_target(filepath, compressed, backup_path)
