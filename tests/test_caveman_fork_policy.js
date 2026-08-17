@@ -2,6 +2,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -35,6 +36,81 @@ test('Claude manifests stay unversioned for commit-SHA identity', () => {
 
   assert.equal(owns(plugin, 'version'), false);
   assert.equal(owns(marketplace.plugins[0], 'version'), false);
+});
+
+test('shared Claude and Gemini descriptor adds one session-only Caveman reminder', () => {
+  const plugin = readJson('.claude-plugin/plugin.json');
+  const descriptor = readJson('hooks/hooks.json');
+  const owns = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  const expectedContext = [
+    'Replies, plans, and subagent prose: English Caveman-ultra.',
+    'Terse fragments; preserve all technical facts, literals, evidence, uncertainty, and safety.',
+    'Clarity overrides brevity. Nested agents inherit.',
+  ].join(' ');
+
+  assert.equal(owns(plugin, 'hooks'), false);
+  assert.deepEqual(Object.keys(descriptor), ['hooks']);
+  assert.deepEqual(Object.keys(descriptor.hooks), ['SessionStart']);
+  assert.equal(descriptor.hooks.SessionStart.length, 1);
+  assert.deepEqual(Object.keys(descriptor.hooks.SessionStart[0]), ['hooks']);
+  assert.equal(descriptor.hooks.SessionStart[0].hooks.length, 1);
+
+  const hook = descriptor.hooks.SessionStart[0].hooks[0];
+  assert.deepEqual(Object.keys(hook).sort(), ['command', 'type']);
+  assert.equal(hook.type, 'command');
+  assert.doesNotMatch(hook.command, /CLAUDE_PLUGIN_ROOT|extensionPath|UserPromptSubmit/);
+
+  const result = childProcess.spawnSync(hook.command, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    shell: true,
+    timeout: 5_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.deepEqual(JSON.parse(result.stdout), {
+    hookSpecificOutput: {
+      hookEventName: 'SessionStart',
+      additionalContext: expectedContext,
+    },
+  });
+});
+
+test('installer describes session-only plugin behavior without implying a per-prompt hook', () => {
+  const installer = read('bin/install.js');
+  const claude = read('CLAUDE.md');
+  const installGuide = read('INSTALL.md');
+  const readme = read('README.md');
+
+  assert.match(
+    installer,
+    /hooks: plugin default hooks file handles SessionStart \(no per-prompt hook\)/,
+  );
+  assert.match(
+    installer,
+    /pass --with-hooks to add standalone SessionStart \+ UserPromptSubmit tracking/,
+  );
+  assert.doesNotMatch(
+    installer,
+    /plugin default hooks file handles SessionStart \+ UserPromptSubmit/,
+  );
+  assert.match(claude, /hooks\/hooks\.json\s+# Shared Claude\/Gemini SessionStart descriptor/);
+  assert.match(
+    claude,
+    /Plugin install.*shared Claude\/Gemini descriptor adds one compact SessionStart reminder\./,
+  );
+  assert.match(
+    claude,
+    /UserPromptSubmit is not installed by default; `--with-hooks` opts into standalone tracking\./,
+  );
+  assert.match(
+    installGuide,
+    /Default: auto; successful plugin install keeps only the shared SessionStart reminder\./,
+  );
+  assert.match(
+    readme,
+    /`\/caveman-stats`.*Requires standalone tracking via `--with-hooks`\./,
+  );
 });
 
 test('canonical and plugin agent copies are byte-identical', () => {

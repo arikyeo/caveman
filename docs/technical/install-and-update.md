@@ -49,8 +49,8 @@ Useful installer controls:
 |---|---|
 | `--dry-run` | Print commands and writes without changing state |
 | `--force` | Reinstall an existing target |
-| `--minimal` | Install plugin or extension without hooks or project rules |
-| `--with-hooks` / `--no-hooks` | Control Claude Code hooks |
+| `--minimal` | Install plugin or extension without standalone hooks or project rules |
+| `--with-hooks` / `--no-hooks` | Opt into or suppress standalone Claude tracking hooks; successful plugin installs otherwise keep one shared SessionStart reminder |
 | `--with-init` | Write current-project rule files |
 | `--with-mcp-shrink="<command>"` | Wrap one upstream MCP server |
 | `--non-interactive` | Disable prompts |

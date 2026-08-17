@@ -139,8 +139,8 @@ function parseArgs(argv) {
   if (opts.all && opts.minimal) die('error: --all and --minimal are mutually exclusive');
   // --all turns on per-repo init only. It deliberately does NOT force:
   //   • withHooks — left at 'auto' so installClaude() can skip standalone
-  //     settings.json wiring when the plugin manifest already wires the hooks
-  //     (duplicate registration fires both per event — issue #392).
+  //     settings.json wiring when the shared plugin descriptor already provides
+  //     the session-only reminder (duplicate SessionStart registration — issue #392).
   //   • withMcpShrink — caveman-shrink is a proxy that needs an upstream
   //     command, so there's no sensible "everything on" default (issue #474).
   //     Opt in explicitly with --with-mcp-shrink="<upstream cmd>".
@@ -484,7 +484,7 @@ async function installClaude(ctx) {
   // caveman-*.js scripts, so Claude Code crashes every SessionStart /
   // UserPromptSubmit with `loader:1478 — Cannot find module …`. Runs
   // unconditionally so it repairs an already-dirty config even when we then
-  // skip standalone wiring because the plugin manifest handles hooks.
+  // skip standalone wiring because the shared plugin descriptor handles SessionStart.
   {
     const settingsPath = path.join(configDir, 'settings.json');
     const settings = SETTINGS.readSettings(settingsPath);
@@ -502,27 +502,27 @@ async function installClaude(ctx) {
 
   // Hook wiring decision matrix (issue #392 — avoid double-firing):
   //   --no-hooks       → skip
-  //   --with-hooks     → wire (warn if the plugin manifest also wires them)
+  //   --with-hooks     → wire (warn if the plugin descriptor also wires SessionStart)
   //   default / --all  → wire only if the plugin install did NOT succeed.
-  // The plugin manifest already wires SessionStart + UserPromptSubmit when the
-  // plugin install succeeds; wiring them again in settings.json fires both per
-  // event (two CAVEMAN MODE blocks, two reinforcement lines).
+  // The cross-platform plugin descriptor intentionally wires only a compact
+  // SessionStart reminder. UserPromptSubmit remains explicit opt-in because a
+  // per-prompt hook adds latency and Gemini uses a different event name.
   let shouldWireHooks;
   if (opts.withHooks === false) {
     shouldWireHooks = false;
   } else if (opts.withHooks === true) {
     shouldWireHooks = true;
     if (pluginInstallSucceeded) {
-      warn('  --with-hooks wires hooks in settings.json alongside the plugin manifest.');
-      warn('  Both will fire on every event. Pass --no-hooks to keep only the plugin path.');
+      warn('  --with-hooks adds standalone SessionStart + UserPromptSubmit beside the plugin reminder.');
+      warn('  SessionStart will fire twice. Pass --no-hooks to keep the session-only plugin path.');
     }
   } else {
     // 'auto'
     shouldWireHooks = !pluginInstallSucceeded;
     if (!shouldWireHooks) {
-      note('  hooks: plugin manifest handles SessionStart + UserPromptSubmit');
-      note('  (pass --with-hooks to also wire standalone hooks in settings.json)');
-      results.skipped.push(['claude-hooks', 'plugin manifest handles hooks']);
+      note('  hooks: plugin default hooks file handles SessionStart (no per-prompt hook)');
+      note('  (pass --with-hooks to add standalone SessionStart + UserPromptSubmit tracking)');
+      results.skipped.push(['claude-hooks', 'plugin default hooks file handles SessionStart']);
     } else {
       note('  hooks: plugin install did not succeed; falling back to standalone wiring');
     }

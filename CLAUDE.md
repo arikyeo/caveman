@@ -69,6 +69,7 @@ caveman/
 │
 ├── agents/                      # cavecrew subagents (single source — kept at root for plugin auto-discovery)
 ├── commands/                    # Codex/Gemini TOML command stubs (root for plugin auto-discovery)
+├── hooks/hooks.json             # Shared Claude/Gemini SessionStart descriptor
 │
 ├── src/                         # Internal source — not auto-discovered by plugin
 │   ├── hooks/                   # Claude Code hooks (installer reads here)
@@ -230,7 +231,7 @@ Configured in `settings.json` under `statusLine.command`. PowerShell counterpart
 
 ### Hook installation
 
-**Plugin install** — hooks wired automatically by plugin system.
+**Plugin install** — shared Claude/Gemini descriptor adds one compact SessionStart reminder. UserPromptSubmit is not installed by default; `--with-hooks` opts into standalone tracking. This keeps normal sessions free of per-prompt hook latency.
 
 **Standalone install** — `bin/install.js` (the unified Node installer) copies hook files into `$CLAUDE_CONFIG_DIR/hooks/` and merges SessionStart + UserPromptSubmit + statusline into `settings.json`. Uses the JSONC-tolerant helpers in `bin/lib/settings.js` so a commented `settings.json` no longer crashes the merge. Defensive `validateHookFields` runs before every write to prevent a single malformed hook from poisoning the entire file (Claude Code Zod silently discards the whole `settings.json` on schema mismatch).
 
@@ -272,9 +273,9 @@ How caveman reaches each agent type:
 
 | Agent | Mechanism | Auto-activates? |
 |-------|-----------|----------------|
-| Claude Code | Plugin (hooks + skills) or standalone hooks | Yes — SessionStart hook injects rules |
+| Claude Code | Plugin (one shared SessionStart reminder + skills) or standalone hooks | Yes — SessionStart adds compact rules; no default per-prompt hook |
 | Codex | Plugin in `plugins/caveman/` plus repo `.codex/hooks.json` and `.codex/config.toml` | Yes on macOS/Linux — SessionStart hook |
-| Gemini CLI | Extension with `GEMINI.md` context file | Yes — context file loads every session |
+| Gemini CLI | Extension with `GEMINI.md` context file + shared SessionStart reminder | Yes — context file loads every session; no per-prompt hook |
 | opencode | Native plugin (`src/plugins/opencode/`) copied into `~/.config/opencode/plugins/caveman/` + `AGENTS.md` ruleset + skills/agents/commands directories. Plugin uses `session.created` and `tui.prompt.append` lifecycle hooks. No statusline (opencode TUI exposes no plugin-writable badge). | Yes — `session.created` writes flag, `AGENTS.md` carries always-on ruleset |
 | OpenClaw | Workspace skill at `~/.openclaw/workspace/skills/caveman/SKILL.md` (frontmatter merged with `version` + `always: true`) plus a marker-fenced bootstrap block in `~/.openclaw/workspace/SOUL.md`. Both writes go through `bin/lib/openclaw.js`; workspace path is overridable via `OPENCLAW_WORKSPACE`. | Yes — SOUL.md is auto-injected each turn under "Project Context" (subject to OpenClaw's 12K-per-file / 60K-total bootstrap caps) |
 | Cursor | `npx skills add ... -a cursor` (default via `--only cursor`) writes the upstream skill profile; per-repo `.cursor/rules/caveman.mdc` via `--with-init` (calls `src/tools/caveman-init.js`) | Yes — always-on rule |

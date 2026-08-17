@@ -81,7 +81,7 @@ npx skills add JuliusBrussee/caveman
 <details>
 <summary>Full installer, Windows, one agent only, uninstall</summary>
 
-The full installer also wires the Claude Code hooks and statusline, finds every supported agent on your machine, and is safe to rerun (Node.js 18+):
+The full installer finds every supported agent and is safe to rerun (Node.js 18+). Successful Claude/Gemini plugin installs use one session-only reminder; add `--with-hooks` only if you want Claude's per-prompt tracker and statusline:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JuliusBrussee/caveman/v2.1.0/install.sh | bash
@@ -248,7 +248,7 @@ One install also brings the small tools:
 | `/caveman-commit` | Terse Conventional Commit messages. |
 | `/caveman-review` | One-line, actionable review findings. |
 | `/caveman-compress <file>` | Smaller Markdown memory files, with the original backed up. |
-| `/caveman-stats` | Local session token usage and estimated savings in Claude Code. |
+| `/caveman-stats` | Local session token usage and estimated savings in Claude Code. Requires standalone tracking via `--with-hooks`. |
 
 <!-- BENCHMARK-TABLE-START -->
 | Task | Normal | Caveman | Saved |

@@ -25,7 +25,7 @@ What it does:
 - Auto-detects every supported agent installed on your machine (Claude Code, Cursor, Codex, etc.).
 - For each one, runs that agent's native install path (plugin / extension / rule file / `npx skills add`).
 - Installs Cavecrew investigator, builder, and reviewer presets where the host supports native subagents.
-- Wires Claude Code hooks and statusline badge on top. (`caveman-shrink` MCP middleware is opt-in via `--with-mcp-shrink` — see flag table below.)
+- Adds one session-only Caveman reminder through the Claude/Gemini plugin descriptor. Full Claude tracking hooks and statusline are opt-in via `--with-hooks`. (`caveman-shrink` MCP middleware is also opt-in — see flag table below.)
 - Skips anything you don't have. Safe to re-run. ~30 seconds end-to-end.
 
 Want to preview before installing? Use `--dry-run`:
@@ -118,14 +118,14 @@ Useful flags:
 
 | Flag | What |
 |---|---|
-| `--all` | Plugin + hooks + statusline + per-repo rule files in `$PWD`. (MCP shrink is opt-in — see `--with-mcp-shrink` below.) |
-| `--minimal` | Plugin / extension only. No hooks, no MCP shrink, no per-repo rules. |
+| `--all` | Plugin + per-repo rule files in `$PWD`. Successful plugin install keeps the session-only reminder; full tracking hooks/statusline still require `--with-hooks`. (MCP shrink remains opt-in.) |
+| `--minimal` | Plugin / extension only. No standalone hooks, MCP shrink, or per-repo rules. |
 | `--only <id>` | One agent only. Repeatable: `--only claude --only cursor`. |
 | `--dry-run` | Print every command. Write nothing. |
 | `--with-init` | Drop always-on rule files into the current repo (`.cursor/`, `.windsurf/`, `.clinerules/`, `.github/copilot-instructions.md`, `.opencode/AGENTS.md`, `AGENTS.md`) and, if OpenClaw is on the box, append the bootstrap block to `~/.openclaw/workspace/SOUL.md`. |
 | `--with-mcp-shrink="<upstream cmd>"` | Register `caveman-shrink` MCP proxy wrapping the given upstream MCP server. **Off by default.** A value is required — caveman-shrink is a proxy and exits immediately without one. Example: `--with-mcp-shrink="npx @modelcontextprotocol/server-filesystem /tmp"`. The value is split on whitespace; for paths-with-spaces, install via `node bin/install.js` from a clone or edit `~/.claude.json` after a stub install. |
 | `--no-mcp-shrink` | Skip MCP-shrink registration. (Default.) |
-| `--with-hooks` / `--no-hooks` | Force-on or force-off the Claude Code hook installer. (Default: on.) |
+| `--with-hooks` / `--no-hooks` | Force-on or force-off standalone Claude tracking hooks and statusline. Default: auto; successful plugin install keeps only the shared SessionStart reminder. |
 | `--skip-skills` | Don't run the npx-skills auto-detect fallback when nothing else matched. |
 | `--config-dir <path>` | Claude Code config dir for hook files + `settings.json`. **Does NOT scope** `claude plugin install`, `gemini extensions install`, opencode (`XDG_CONFIG_HOME`), or openclaw (`OPENCLAW_WORKSPACE`) — those use their own paths. Default: `$CLAUDE_CONFIG_DIR` or `~/.claude`. `~` is expanded. |
 | `--non-interactive` | Never prompt; use defaults. (Auto when stdin is not a TTY.) |
@@ -165,16 +165,16 @@ You should see ~30 rows. Detected agents are marked. Anything you wanted but isn
 
 Open Claude Code, type `/caveman`. Response should be terse fragments — "Got it. Caveman mode on." or similar. Try a real question: "What is closures in JS?" — answer should drop articles and read like grunts.
 
-**3. Check the flag file.**
+**3. If you installed with `--with-hooks`, check the flag file.**
 
 ```bash
 cat "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.caveman-active"
-# expected output: full
+# expected output: ultra
 ```
 
-If it's missing or empty, the SessionStart hook didn't fire. See troubleshooting below.
+Default plugin installs intentionally leave this file absent. With `--with-hooks`, missing or empty means the standalone SessionStart hook did not fire; see troubleshooting below.
 
-Statusline should show `[CAVEMAN]` (orange) at the bottom of Claude Code. After your first `/caveman-stats` run it appends a savings counter like `[CAVEMAN] ⛏ 12.4k`.
+With `--with-hooks`, statusline should show `[CAVEMAN:ULTRA]` (orange) at the bottom of Claude Code. After your first `/caveman-stats` run it appends a savings counter like `[CAVEMAN:ULTRA] ⛏ 12.4k`.
 
 ## Uninstall
 

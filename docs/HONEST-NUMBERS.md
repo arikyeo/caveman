@@ -38,7 +38,7 @@ that, you are paying to use it.
 
 ## Measure it yourself
 
-1. `/caveman-stats` (Claude Code) reads session log and prints actual output/cache counts. It publishes no counterfactual savings until a reviewed benchmark result is committed.
+1. `/caveman-stats` (Claude Code, installed with `--with-hooks`) reads session log and prints actual output/cache counts. It publishes no counterfactual savings until a reviewed benchmark result is committed.
 2. Run same task with and without Caveman, then compare provider usage or billing page. That A/B outranks repository estimates.
 3. Reproduce repository numbers with `benchmarks/run.py` (Anthropic key required) and `evals/measure.py` (offline committed snapshot).
 
