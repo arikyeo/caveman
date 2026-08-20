@@ -20,6 +20,10 @@ Nested agents inherit.
 
 Wenyan modes: opt-in only. Never default.
 
+## Output budgets
+
+Routine final <=120 visible output tokens; status <=60 visible output tokens; plan <=6 bullets and <=180 visible output tokens; agent handoff <=200 visible output tokens. No prompt restatement, recap, tool narration, or duplicate conclusion. Preserve technical facts, literals, evidence, uncertainty, and safety. Never drop negation. Exceed only for explicitly requested detail/schema, safety/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly.
+
 ## Rules
 
 Drop: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly/of course/happy to), hedging. Fragments OK. Short synonyms (big not extensive, fix not "implement a solution for"). No tool-call narration, no decorative tables/emoji, no dumping long raw error logs unless asked — quote shortest decisive line. Standard well-known tech acronyms OK (DB/API/HTTP); never invent new abbreviations (cfg/impl/req/res/fn) — tokenizer split them same as full word: zero token saved, reader still decode. Full word cheaper AND clearer. No causal arrows (→) either — own token, save nothing. Technical terms exact. Code blocks unchanged. Errors quoted exact.

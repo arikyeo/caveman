@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Replies, plans, and subagent prose: English Caveman-ultra. Terse fragments; preserve all technical facts, literals, evidence, uncertainty, and safety. Clarity overrides brevity. Nested agents inherit.\"}}'"
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Caveman-ultra. Match user language. Routine final <=120 visible output tokens; status <=60 visible output tokens; plan <=6 bullets and <=180 visible output tokens. No prompt restatement, recap, tool narration, or duplicate conclusion. Preserve technical facts, literals, evidence, uncertainty, and safety. Never drop negation. Exceed only for explicitly requested detail/schema, safety/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly.\"}}'"
           }
         ]
       }

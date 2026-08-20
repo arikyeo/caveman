@@ -13,6 +13,29 @@ const AGENTS = [
   'cavecrew-builder.md',
   'cavecrew-reviewer.md',
 ];
+const SESSION_CONTEXT = [
+  'Caveman-ultra. Match user language.',
+  'Routine final <=120 visible output tokens; status <=60 visible output tokens; plan <=6 bullets and <=180 visible output tokens.',
+  'No prompt restatement, recap, tool narration, or duplicate conclusion.',
+  'Preserve technical facts, literals, evidence, uncertainty, and safety. Never drop negation.',
+  'Exceed only for explicitly requested detail/schema, safety/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly.',
+].join(' ');
+const SUBAGENT_CONTEXT = [
+  'Caveman-ultra. Match user language.',
+  'Handoff <=200 visible output tokens.',
+  'No prompt restatement, recap, tool narration, or duplicate conclusion.',
+  'Preserve technical facts, literals, evidence, uncertainty, and safety. Never drop negation.',
+  'Exceed only for explicitly requested detail/schema, safety/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly.',
+  'Nested agents inherit.',
+].join(' ');
+const AGENT_POLICY = [
+  'Caveman-ultra. Match user language.',
+  'Handoff <=200 visible output tokens. Answer/receipt first.',
+  'No prompt restatement, recap, tool narration, or duplicate conclusion.',
+  'Preserve technical facts, literals, evidence, uncertainty, and safety. Never drop negation.',
+  'Exceed only for explicitly requested detail/schema, safety/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly.',
+  'Nested agents inherit.',
+].join(' ');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -29,6 +52,38 @@ function readGeneratedSkill(name) {
   return JSON.parse(match[1]);
 }
 
+function assertStaticHookCommand(hook, event, context) {
+  const expectedOutput = {
+    hookSpecificOutput: {
+      hookEventName: event,
+      additionalContext: context,
+    },
+  };
+  assert.equal(hook.command, `echo '${JSON.stringify(expectedOutput)}'`);
+
+  const shells =
+    process.platform === 'win32'
+      ? [
+          ['PowerShell', 'powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', hook.command]],
+          ['Git Bash', 'bash.exe', ['-lc', hook.command]],
+        ]
+      : [
+          ['POSIX sh', '/bin/sh', ['-c', hook.command]],
+          ['Bash', 'bash', ['-lc', hook.command]],
+        ];
+
+  for (const [name, executable, args] of shells) {
+    const result = childProcess.spawnSync(executable, args, {
+      cwd: ROOT,
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    assert.equal(result.status, 0, `${event} ${name}: ${result.error || result.stderr}`);
+    assert.equal(result.stderr, '', `${event} ${name}`);
+    assert.deepEqual(JSON.parse(result.stdout), expectedOutput, `${event} ${name}`);
+  }
+}
+
 test('Claude manifests stay unversioned for commit-SHA identity', () => {
   const plugin = readJson('.claude-plugin/plugin.json');
   const marketplace = readJson('.claude-plugin/marketplace.json');
@@ -38,15 +93,10 @@ test('Claude manifests stay unversioned for commit-SHA identity', () => {
   assert.equal(owns(marketplace.plugins[0], 'version'), false);
 });
 
-test('shared Claude and Gemini descriptor adds one session-only Caveman reminder', () => {
+test('shared Claude and Gemini descriptor keeps one static SessionStart reminder', () => {
   const plugin = readJson('.claude-plugin/plugin.json');
   const descriptor = readJson('hooks/hooks.json');
   const owns = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
-  const expectedContext = [
-    'Replies, plans, and subagent prose: English Caveman-ultra.',
-    'Terse fragments; preserve all technical facts, literals, evidence, uncertainty, and safety.',
-    'Clarity overrides brevity. Nested agents inherit.',
-  ].join(' ');
 
   assert.equal(owns(plugin, 'hooks'), false);
   assert.deepEqual(Object.keys(descriptor), ['hooks']);
@@ -63,35 +113,27 @@ test('shared Claude and Gemini descriptor adds one session-only Caveman reminder
     /\bnode(?:\.exe)?\b|\bPATH\b|CLAUDE_PLUGIN_ROOT|extensionPath|UserPromptSubmit/,
   );
 
-  const expectedOutput = {
-    hookSpecificOutput: {
-      hookEventName: 'SessionStart',
-      additionalContext: expectedContext,
-    },
-  };
-  assert.equal(hook.command, `echo '${JSON.stringify(expectedOutput)}'`);
+  assertStaticHookCommand(hook, 'SessionStart', SESSION_CONTEXT);
+});
 
-  const shells =
-    process.platform === 'win32'
-      ? [
-          ['PowerShell', 'powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', hook.command]],
-          ['Git Bash', 'bash.exe', ['-lc', hook.command]],
-        ]
-      : [
-          ['POSIX sh', '/bin/sh', ['-c', hook.command]],
-          ['Bash', 'bash', ['-lc', hook.command]],
-        ];
+test('Claude-only settings candidate adds one static SubagentStart reminder', () => {
+  const descriptor = readJson('hooks/claude-subagent-start.json');
 
-  for (const [name, executable, args] of shells) {
-    const result = childProcess.spawnSync(executable, args, {
-      cwd: ROOT,
-      encoding: 'utf8',
-      timeout: 5_000,
-    });
-    assert.equal(result.status, 0, `${name}: ${result.error || result.stderr}`);
-    assert.equal(result.stderr, '', name);
-    assert.deepEqual(JSON.parse(result.stdout), expectedOutput, name);
-  }
+  assert.deepEqual(Object.keys(descriptor), ['hooks']);
+  assert.deepEqual(Object.keys(descriptor.hooks), ['SubagentStart']);
+  assert.equal(descriptor.hooks.SubagentStart.length, 1);
+  assert.deepEqual(Object.keys(descriptor.hooks.SubagentStart[0]), ['hooks']);
+  assert.equal(descriptor.hooks.SubagentStart[0].hooks.length, 1);
+
+  const hook = descriptor.hooks.SubagentStart[0].hooks[0];
+  assert.deepEqual(Object.keys(hook).sort(), ['command', 'type']);
+  assert.equal(hook.type, 'command');
+  assert.doesNotMatch(
+    hook.command,
+    /\bnode(?:\.exe)?\b|\bPATH\b|CLAUDE_PLUGIN_ROOT|extensionPath|UserPromptSubmit|PreToolUse/,
+  );
+
+  assertStaticHookCommand(hook, 'SubagentStart', SUBAGENT_CONTEXT);
 });
 
 test('installer describes session-only plugin behavior without implying a per-prompt hook', () => {
@@ -144,11 +186,7 @@ test('canonical and plugin agent copies are byte-identical', () => {
 test('all cavecrew agents inherit compact language-safe Caveman-ultra policy', () => {
   for (const filename of AGENTS) {
     const content = read(`agents/${filename}`);
-    assert.match(
-      content,
-      /Caveman-ultra, user's language\. Minimize tokens; answer\/receipt first\. No restatement\/tool narration\. Preserve technical literals verbatim\. Nested agents inherit\. Full clarity for security\/irreversible work\./,
-      filename,
-    );
+    assert.match(content, new RegExp(AGENT_POLICY.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), filename);
     assert.doesNotMatch(content, /wenyan/i, `${filename} must not force Wenyan`);
   }
 });
@@ -169,10 +207,42 @@ test('Caveman skill defaults all agent-facing prose to ultra', () => {
   assert.match(skill, /Wenyan modes: opt-in only\. Never default\./);
   assert.match(
     skill,
+    /Routine final <=120 visible output tokens; status <=60 visible output tokens; plan <=6 bullets and <=180 visible output tokens; agent handoff <=200 visible output tokens\./,
+  );
+  assert.match(
+    skill,
+    /No prompt restatement, recap, tool narration, or duplicate conclusion\./,
+  );
+  assert.match(
+    skill,
+    /Preserve technical facts, literals, evidence, uncertainty, and safety\. Never drop negation\./,
+  );
+  assert.match(
+    skill,
+    /Exceed only for explicitly requested detail\/schema, safety\/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly\./,
+  );
+  assert.match(
+    skill,
     /Plans, task packets, status, and handoffs intended for agent reuse use Caveman-ultra\. Code\/comments\/commits\/PRs\/user docs\/memory\/third-party prose stay normal unless asked \(`\/caveman-compress` exempt\)\. Stop phrases disable; otherwise level persists for session\./,
   );
   assert.doesNotMatch(skill, /Persisted outside chat: write normal prose/);
   assert.equal(read('plugins/caveman/skills/caveman/SKILL.md'), skill, 'Caveman skill mirror drifted');
+});
+
+test('Cavecrew skill gives every handoff the same compact budget', () => {
+  const skill = read('skills/cavecrew/SKILL.md');
+
+  assert.match(skill, /Handoff <=200 visible output tokens\./);
+  assert.match(skill, /No prompt restatement, recap, tool narration, or duplicate conclusion\./);
+  assert.match(
+    skill,
+    /Preserve technical facts, literals, evidence, uncertainty, and safety\. Never drop negation\./,
+  );
+  assert.match(
+    skill,
+    /Exceed only for explicitly requested detail\/schema, safety\/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly\./,
+  );
+  assert.equal(read('plugins/caveman/skills/cavecrew/SKILL.md'), skill, 'Cavecrew skill mirror drifted');
 });
 
 test('ultra examples preserve explicit causality without invented abbreviations', () => {
