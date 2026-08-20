@@ -33,6 +33,8 @@ Subagent tool results get injected into main context verbatim. A vanilla `Explor
 
 ## Output contracts
 
+Handoff <=200 visible output tokens. No prompt restatement, recap, tool narration, or duplicate conclusion. Preserve technical facts, literals, evidence, uncertainty, and safety. Never drop negation. Exceed only for explicitly requested detail/schema, safety/irreversible clarity, or when uncertainty or required evidence cannot fit; state exception briefly.
+
 What main thread can rely on per agent:
 
 **`cavecrew-investigator`**
