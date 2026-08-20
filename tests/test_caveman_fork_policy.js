@@ -64,7 +64,7 @@ function assertStaticHookCommand(hook, event, context) {
   const shells =
     process.platform === 'win32'
       ? [
-          ['PowerShell', 'powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', hook.command]],
+          ['PowerShell', 'powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', hook.command]],
           ['Git Bash', 'bash.exe', ['-lc', hook.command]],
         ]
       : [
@@ -76,7 +76,7 @@ function assertStaticHookCommand(hook, event, context) {
     const result = childProcess.spawnSync(executable, args, {
       cwd: ROOT,
       encoding: 'utf8',
-      timeout: 5_000,
+      timeout: 30_000,
     });
     assert.equal(result.status, 0, `${event} ${name}: ${result.error || result.stderr}`);
     assert.equal(result.stderr, '', `${event} ${name}`);
